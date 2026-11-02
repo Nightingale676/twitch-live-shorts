@@ -45,13 +45,21 @@ export class LiveCapture {
     encoder.stdin.on('error', () => {});
     source.stderr.on('data', data => {
       const message = data.toString().trim();
-      console.log(`[Capture] ${message}`);
-      if (message.includes('WinError 10013')) {
+      const dnsFailure = /NameResolutionError|Failed to resolve|Errno 11001|getaddrinfo failed|Temporary failure in name resolution/i.test(message);
+      if (dnsFailure) {
+        this.connectionError = 'Could not resolve Twitch’s video server address. Check your internet or DNS connection, then retry recording.';
+        console.log('[Capture] Twitch video server DNS lookup failed; waiting for Streamlink to retry.');
+      } else if (message.includes('WinError 10013')) {
         this.connectionError = 'Connection to Twitch is blocked (WinError 10013). Stop the background server and run npm.cmd start in your own terminal.';
-      } else if (message.includes('[error]')) {
-        this.connectionError = message.slice(-500);
+        console.log('[Capture] Connection to Twitch is blocked (WinError 10013).');
+      } else if (/\[error\]/i.test(message)) {
+        this.connectionError = 'Streamlink could not open the Twitch stream. Check that the channel is live, then try again.';
+        console.log('[Capture] Streamlink could not open the Twitch stream.');
       } else if (message.includes('Opening stream:')) {
         this.connectionError = null;
+        console.log(`[Capture] ${message.replace(/https?:\/\/\S+/g, '[URL]')}`);
+      } else {
+        console.log(`[Capture] ${message.replace(/https?:\/\/\S+/g, '[URL]')}`);
       }
     });
     encoder.stderr.on('data', data => console.error(`[Buffer] ${data.toString().trim()}`));
